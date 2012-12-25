@@ -4,49 +4,94 @@
 #include <cmath>
 #include <limits>
 #include <ctime>
+#include <fnmatch.h> // for wild card matching
 
 // A Prediction constructor
 Prediction::Prediction(Characters characters){
 	// initalize characters
 	characters_ = characters;
-
-	// add an "empty" template to template set 
-	//Temp emp; emp["empty"] = -1;
-	//templates_.push_back(emp);
-
 	// add test template
-	//Temp test0; test0["executable"] = 11;
-	//addTemp(test0);
-	Temp test; test["user"] = 8; test["executable"] = 11; test["server"] = 9;
-	addTemp(test);
-	Temp test2; test2["user"] = 8; test2["executable"] = 11;
-	addTemp(test2);
-	//Temp test3; test3["user"] = 8; test3["executable"] = 11; 
-	//			test3["server"] = 9;  test3["priority"] = 123;
-	//addTemp(test3);
+	Temp test0; test0["user"] = 11;
+	addTemp(test0);
 	
-	//templates_.push_back(test);
+	Temp test; test["user"] = 8; test["server"] = 11;
+	addTemp(test);
+	
+	Temp test2; test2["user"] = 8; test2["executable"] = 11; test2["arguments"] = 0;
+	addTemp(test2);
+	
+	Temp test3; test3["user"] = 8; test3["arguments"] = 11; 
+				test3["server"] = 9;  test3["priority"] = 123;
+	addTemp(test3);
+	/*
+	Temp test4; test4["user"] = 8; test4["arguments"] = 11; 
+				test4["server"] = 9;  test4["priority"] = 123; test4["executable"] = 0;
+	addTemp(test4);
+	*/
 }
 
-// TODO
-// Greedy template search algorithm with 
+// Greedy template search algorithm
 // Input: characters
 // Output: template set
 void
 Prediction::greedyTemplateSearch(){
-	for(int i=1; i<=categories_.size(); i++ ){
-		// construct template set Tc
+	int n = characters_.size();
+	for(int i=1; i<n; i++ ){	
+		// index vector of all combinations, do combination algorithm
+		AllCombinations combs;
+		combination(combs,n,i);
+		// construct template set Tc (candidates)
 		Tempset candidates;
-		//next_combination(characters_.begin(),characters_.begin()+i,characters_.end());
-		Tempset::iterator ti;
+		for(size_t i = 0; i < combs.size(); ++i) {
+			OneCombination &one = combs[i];  Temp oneTemp;
+			for(size_t j = 0; j < one.size(); ++j) 
+				{ oneTemp[characters_[one[j]]] = 0; }  // 0 for dummy number, no use now.
+			candidates.push_back(oneTemp);
+		}// End of combination for loop
+		
+		// For each template in candidates, predict runtime with history app and calculate mean error
+		Tempset::iterator ti; double err[candidates.size()]; int cnt=0;
+		for(int i=0; i<candidates.size();i++) { err[i] = 0.0; }
 		for(ti = candidates.begin(); ti != candidates.end(); ti++){
-
-
-
-		}
-
+			templates_.push_back(*ti);
+			// test print temp
+			Temp::iterator tmpi;
+			for(tmpi = (*ti).begin(); tmpi != (*ti).end(); tmpi++)
+				{ std::cout << (*tmpi).first << " "; } 
+			std::cout << std::endl;
+			constructFromHistory(); // construct from history first
+			// run prediction, be sure the history information has already in memory.
+			for(int i=0;i<applications_.size();i++){
+				double predict = predictRunTime(applications_[i]);
+				err[cnt] += abs(applications_[i].getRuntime()-predict);
+			}
+			// calculate mean error
+			err[cnt] = err[cnt]/applications_.size();
+			std::cout << err[cnt] << std::endl;
+			cnt++;
+			// clean up template set and categories
+			templates_.pop_back();
+			categories_.clear();
+			catehistapps_.clear();
+		}// End of Tempset for loop
+		
+		// Select the lowest mean error template
+		double min = std::numeric_limits<double>::max(); int idx=0;
+		for(int i=0;i<candidates.size();i++){
+			if(err[i] < min){
+				min = err[i];
+				idx = i;
+			}
+		}// End of comparison min mean error
+		templates_.push_back(candidates[idx]);
 	}
-
+	// last combination: all characters_ in one temp
+	Temp lastTemp;
+	for(int i=0;i<n;i++)
+		{ lastTemp[characters_[i]] = 0; }
+	// add last template
+	templates_.push_back(lastTemp);
+	
 }
 
 // prediction algorithm
@@ -71,11 +116,10 @@ Prediction::predictRunTime(Application app){
 				Ca.push_back(app.getExecutable());
 			}if((*tmpi).first == "priority"){
 				Ca.push_back(app.getPriority());
+			}if((*tmpi).first == "arguments"){
+				//if ( wildcardMatch( app.getArguments() ) == "NULL" ) continue;
+				Ca.push_back( wildcardMatch( app.getArguments() ) );
 			}
-			//TODOs: how to handle arguments?
-			//if((*tmpi).first == "arguments"){
-				//Ca.push_back(app.getArguments());
-			//}
 		}// End of extract template for loop
 
 		//Identify Ca whether is in categories_
@@ -86,6 +130,7 @@ Prediction::predictRunTime(Application app){
 				found = true;
 			}
 		} // End of identify Ca in categories_ or not for loop
+
 		if(!found){
 			// skip prediction by this template, find next template/category
 			continue;
@@ -132,7 +177,7 @@ Prediction::predictRunTime(Application app){
 	}// End of Tempset for loop
 
 	if(means.size() == 0){
-		return 0.0;
+		return 0.0; // return 0 if no suitable prediction
 	}
 	// select the estimation with the smallest confidence interval 
 	// and return run time for this app
@@ -143,9 +188,8 @@ Prediction::predictRunTime(Application app){
 			minCI_90idx = i; 
 		}
 	}
+	//std::cout << "CI for 90\%: " << minCI_90 << std::endl;
 	return means[minCI_90idx];
-	// what if no prediction output?
-	// return mean run time of whole history application?
 }
 
 // construct categories from history application information
@@ -171,20 +215,15 @@ Prediction::constructFromHistory(){
 					Ca.push_back((*hi).getExecutable());
 				}if((*tmpi).first == "priority"){
 					Ca.push_back((*hi).getPriority());
+				}if((*tmpi).first == "arguments"){ // one application, one wild card pattern now.
+					Ca.push_back( wildcardMatch((*hi).getArguments()) );
 				}
-				//TODOs: how to handle arguments?
-				//if((*tmpi).first == "arguments"){
-					//Ca.push_back((*hi).getArguments());
-				//}
 			}// End of extract template for loop
 				
 			//Identify Ca whether is in categories_
 			bool found = false;
 			for(int i=0;i<categories_[Ca.size()].size();i++){
-				if(categories_[Ca.size()][i] == Ca){
-					//found! 
-					found = true;
-				}
+				if(categories_[Ca.size()][i] == Ca){ found = true; }
 			} // End of identify Ca in categories_ or not for loop
 			if(!found){
 				// create new Ca into categories_ 
@@ -194,8 +233,8 @@ Prediction::constructFromHistory(){
 			// insert application index into catehistapps_
 			// check if too many applications in Ca, delete oldest hist app idx
 			catehistapps_[Ca].push_back(histAppIdx);
-			if(catehistapps_[Ca].size() > maxhistcapacity)
-				{ catehistapps_[Ca].erase(catehistapps_[Ca].begin()); }
+			//if(catehistapps_[Ca].size() > maxhistcapacity)
+			//	{ catehistapps_[Ca].erase(catehistapps_[Ca].begin()); }
 			
 		}// End of Tempset for loop
 		histAppIdx++;
@@ -203,33 +242,28 @@ Prediction::constructFromHistory(){
 
 }
 
+// Wild card comparison helper function
+// INPUT: one cmd args
+// OUTPUT: corresponding wild card pattern
+// 		   "NULL" for no match at all
+std::string
+Prediction::wildcardMatch(std::string str){
+	int ret;
+	for(int i=0; i<wildcardpatterns_.size(); i++){
+		ret = fnmatch(wildcardpatterns_[i].c_str(), str.c_str(),0);
+		if(!ret) // found corresponding pattern
+			{ return wildcardpatterns_[i]; }
+	}
+	// no pattern match, return "NULL"
+	std::string nomatch("NULL");
+	return nomatch;
+}
+
 // Add one template to templates_ and return the new templates_
 Tempset 
 Prediction::addTemp(Temp temp){
 	templates_.push_back(temp);
 	return templates_;
-}
-
-// Add one character<character name, position in the log> into characters_
-// and return the new characters_
-Characters 
-Prediction::addOneCharacter(std::string name,int pos){
-	characters_[name] = pos;
-	return characters_;
-}
-
-// Get all characters_
-Characters 
-Prediction::getCharacters(){
-	return characters_;
-}
-
-// Get one character value(position) with key (character name) from characters_
-int
-Prediction::getOneCharacter(std::string name){
-	Characters::iterator ci;
-	ci = characters_.find(name);
-	return (*ci).second; // Error might occur if not found
 }
 
 // Insert a category in Cateset map with "vecNum" characters
@@ -255,9 +289,8 @@ Prediction::insertOneHistApp(HistApplication histApp){
 void
 Prediction::printCharacters(){
 	std::cout << "Characters:" << std::endl;
-	Characters::iterator ci;
-	for (ci = characters_.begin(); ci != characters_.end(); ci++){
-		std::cout << (*ci).first << ": " << (*ci).second << std::endl;
+	for (int i=0;i<characters_.size();i++){
+		std::cout << characters_[i] << std::endl;
 	}
 	std::cout << std::endl;
 }
@@ -301,4 +334,51 @@ Prediction::printCategories(){
 		}// End of CatePerTemp for loop
 		std::cout << std::endl;
 	}// End of Cateset for loop
+}
+
+//Combination helper function
+/* Algorithm by Donald Knuth. */
+void
+Prediction::combination(AllCombinations &s, size_t n, size_t k) {
+	s.clear(); // clear if you forgot
+
+	static OneCombination c;
+	if(c.size() < k+3) c.resize(k+3);
+	
+	size_t i, j = k, x;	
+	
+	// do the initialination
+	for(i = 1; i <= k; ++i) c[i] = i;
+	c[k+1] = n+1;
+	c[k+2] = 0;
+	
+	do {
+		add_one_combination(c, k, s);
+	
+		if(j > 0) {
+			x = j + 1;
+			incr(c, x, j);
+			continue;
+		}
+		
+		if(c[1] + 1 < c[2]) {
+			c[1] += 1;
+			continue;
+		}
+		j = 2;
+		
+		do {
+			c[j-1] = j-1;
+			x = c[j]+1;
+			if(x == c[j+1]) {
+				++j;
+				continue;
+			}
+			else break;
+		} while(1);
+		
+		if(j > k) break;
+		
+		incr(c, x, j);
+	} while(1);
 }

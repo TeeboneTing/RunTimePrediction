@@ -2,7 +2,7 @@
 
 // Constructor of class Application
 Application::Application(std::string user,std::string executable,
-						 std::vector<std::string> args,
+						 std::string args,
 						 std::string server,std::string priority){
 	user_ = user;
 	executable_ = executable;
@@ -17,7 +17,7 @@ Application::Application(std::string user,std::string executable,
 // Constructor of class HistApplication
 HistApplication::HistApplication(std::string user,
 								 std::string executable,
-								 std::vector<std::string> args,
+								 std::string args,
 								 std::string server,
 								 std::string priority,
 								 double runtime): 

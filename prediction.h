@@ -18,9 +18,9 @@
 #include "application.h"
 
 // Define template set types
-typedef std::map<std::string, int> Characters;
+typedef std::vector<std::string> Characters;
 typedef std::map<std::string, int> Temp;
-typedef std::list<Temp> Tempset;
+typedef std::vector<Temp> Tempset;
 
 // Define application information set from history log
 typedef std::vector<HistApplication> HistAppset;
@@ -32,8 +32,11 @@ typedef std::map<int, CatePerTemp> Cateset;		 // All category sets
 typedef std::map<Cate,std::vector<int> > CateHistAppset;// <one category,index in HistAppset>
 
 //Capacity boundary for constructFromHistory()
-const int maxhistcapacity = 50 ;
+//const int maxhistcapacity = 1000 ;
 
+//Combination types
+typedef std::vector<size_t> OneCombination;			 // combination indexes 
+typedef std::vector<OneCombination> AllCombinations;  // vector of combination indexes
 
 class Prediction{
 public:
@@ -58,37 +61,32 @@ public:
 	void printTemplates();
 	
 	//Data structure functions
-	Characters addOneCharacter(std::string,int); // Add one character<character name, position in the log> into characters_
-												 // and return the new characters_
-	Characters getCharacters();					 // Get all characters_
-	int getOneCharacter(std::string);	 		 // Get one character value(position) with key (character name) from characters_
 	Tempset addTemp(Temp);						 // Add one template to templates_ and return the new templates_
-
 	int insertOneCate(Cate,int);				 // Insert a category into the specified number of vector in Cateset map
-
 	int insertOneHistApp(HistApplication);		 // Insert a history application to applications_
-
 	HistApplication getOneHistApp(int idx) { return applications_[idx]; }
-	Tempset getTemps() { return templates_; }
+	void addOneWildCard(std::string str) { wildcardpatterns_.push_back(str); }
+
 private:
 	Characters characters_;						 //Characters that templates could use
 	Tempset templates_; 			 			 //Template set
 	Cateset categories_;						 //Category set
 	HistAppset applications_;					 //Application information from history log
 	CateHistAppset catehistapps_;				 //History Application index (HistAppset) for one category
-	
+	std::vector<std::string> wildcardpatterns_;  //Command line arguments categories
+
 	// combination helper function
-	template<class RandIt>
-	bool next_combination(RandIt first, RandIt mid, RandIt last){
-    	typedef typename std::iterator_traits< RandIt >::value_type value_type;
-    	std::sort(mid, last, std::greater< value_type >() );
-    	while(std::next_permutation(first, last)){
-   		    if(std::adjacent_find(first, mid, std::greater< value_type >() ) == mid){
-        	    return true;
-        	}
-        	std::sort(mid, last, std::greater< value_type >() );
-        }
-    	return false;
+	void combination(AllCombinations &s, size_t n, size_t k);
+	
+	inline void incr(OneCombination &c, size_t &x, size_t &j) { c[j] = x; j--; }
+
+	inline void add_one_combination(OneCombination &c, size_t k, AllCombinations &s) {
+		s.push_back(OneCombination(k,0));
+		OneCombination &comb = s.back();
+
+		for(size_t i = k; i >= 1; --i) comb[i-1] = c[i] - 1;
 	}
 
+	// wild card comparison helper function
+	std::string wildcardMatch(std::string);
 };

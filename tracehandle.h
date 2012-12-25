@@ -14,13 +14,15 @@
 
 class TraceHandle{
 public:
-	TraceHandle(char* trainfilename, char* testfilename, Prediction *pred); // Constructor of TraceHandle with input file stream argument
+	TraceHandle(char* trainfilename, char* testfilename, char* wildcards, Prediction *pred); // Constructor of TraceHandle with input file stream argument
 	void parseTrace();					// parse input log into application information data structure.
+	void storeWildCards();				// store wild card arguments into Prediction
 	void inputTest();					// predict application trun time from test file
 	~TraceHandle();						// Destructor of TraceHandle class
 private:
 	std::ifstream fin_; // File input stream
 	std::ifstream ftestin_; // Test file input stream
+	std::ifstream fwc_; // wild card patterns
 	Prediction *predict_; // A pointer to Prediction class
 
 	std::string parseExecutable(std::string str){

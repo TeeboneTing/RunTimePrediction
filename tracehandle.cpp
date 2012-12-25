@@ -6,9 +6,10 @@
 #include <cmath>
 
 // Constructor of TraceHandle with input file stream object
-TraceHandle::TraceHandle(char* trainfilename, char* testfilename, Prediction *pred){
+TraceHandle::TraceHandle(char* trainfilename, char* testfilename, char* wildcards, Prediction *pred){
 	fin_.open(trainfilename);
 	ftestin_.open(testfilename);
+	fwc_.open(wildcards);
 	predict_ = pred;
 }
 
@@ -17,8 +18,20 @@ TraceHandle::~TraceHandle(){
 	fin_.close();
 }
 
+// store wild card arguments into Prediction
+void
+TraceHandle::storeWildCards(){
+	char line[32768];
+	while(fwc_.getline(line,32768)){
+		std::string wc(line);
+		predict_->addOneWildCard(wc);
+	}// End of while getline()
+}
+
+
 // parse input log into application information data structure.
-void TraceHandle::parseTrace(){
+void
+TraceHandle::parseTrace(){
 	// while not the end of file...
 	char line[32768];
 	while(fin_.getline(line,32768)){
@@ -39,9 +52,11 @@ void TraceHandle::parseTrace(){
     	std::string priority = arrayTokens[3];
     	double runtime; std::istringstream (arrayTokens[10]) >> runtime;
     	runtime = runtime/60.0;
-		
+		std::string arguments = executable;
+		for(int i=0;i<args.size();i++) { arguments = arguments + args[i] + " "; }
+
     	// Initialize a new history application.
-    	HistApplication newAPP(user,executable,args,server,priority,runtime);
+    	HistApplication newAPP(user,executable,arguments,server,priority,runtime);
     	// Insert into prediction class data structure.
     	predict_ -> insertOneHistApp(newAPP);
     	
@@ -71,9 +86,11 @@ TraceHandle::inputTest(){
     	std::string priority = arrayTokens[3];
     	double runtime; std::istringstream (arrayTokens[10]) >> runtime;
     	runtime = runtime/60.0;
+    	std::string arguments =  executable;
+		for(int i=0;i<args.size();i++) { arguments = arguments + args[i] + " "; }
 		
     	// Initialize a new test application.
-    	Application newAPP(user,executable,args,server,priority);
+    	Application newAPP(user,executable,arguments,server,priority);
     	// Insert into prediction class data structure.
     	double estimate;
     	estimate = predict_ -> predictRunTime(newAPP);
@@ -91,73 +108,31 @@ TraceHandle::inputTest(){
 int main(int argc, char* argv[]){
 	// Define log characters
 	Characters chars;
-	chars["user"] = 8;
-	chars["server"] = 9;
-	chars["executable"] = 11;
-	//chars["arguments"] = 12;
-	chars["priority"] = 2;
-	
+	chars.push_back("user");
+	chars.push_back("server");
+	chars.push_back("executable");
+	chars.push_back("priority");
+	chars.push_back("arguments");
 	
 	// Template test cases
 	Prediction predict(chars);
 	predict.printCharacters();
 	std::cout << std::endl;
-	/*
-	predict.addOneCharacter("test",9);
-	predict.testDumpTempsetCateset();
-	std::cout << std::endl;
-
-	Temp newTemp;
-	newTemp["user"] = 1;
-	newTemp["server"] = 2;
-	predict.addTemp(newTemp);
-
-	Temp newTemp2;
-	newTemp2["executable"] = 3;
-	newTemp2["arguments"] = 4;
-	predict.addTemp(newTemp2);
-	predict.testDumpTempsetCateset();
-	std::cout<< std::endl;
-
-	// Category test cases
-	Cate cat1;
-	cat1.push_back("teebone");
-	cat1.push_back("linux10");
-	
-	Cate cat2;
-	cat2.push_back("roy");
-	cat2.push_back("linux5");
-	
-	Cate cat3;
-	cat3.push_back("teebone");
-	cat3.push_back("linux10");
-	cat3.push_back("svm-train");
-	
-	Cate cat4;
-	cat4.push_back("oscar");
-	cat4.push_back("linux15");
-
-	predict.insertOneCate(cat1,2);
-	predict.insertOneCate(cat2,2);
-	predict.insertOneCate(cat3,3);
-	predict.insertOneCate(cat4,4);
-	predict.testDumpTempsetCateset();
-	std::cout<< std::endl;
-	*/
 
 	// Trace handle test case
 	// argv[1] for train file name!
 	// argv[2] for test file name!
-	TraceHandle th(argv[1],argv[2],&predict);
+	// argv[3] for wildcard command line arguments categories
+	TraceHandle th(argv[1],argv[2],argv[3],&predict);
 	th.parseTrace();
-
+	th.storeWildCards();
 	// Prediction test case
-	predict.constructFromHistory();
-	
-	th.inputTest();
 	//predict.greedyTemplateSearch();
+	predict.constructFromHistory();
+	th.inputTest();
 	//predict.printTemplates();
 	//predict.printCategories();
+
 
 	return 0;
 }

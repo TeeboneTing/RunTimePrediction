@@ -17,17 +17,17 @@ class Application{
 public:
 	// Constructor of class Application
 	Application(std::string user,std::string executable,
-				std::vector<std::string> args,std::string server,std::string priority); 
+				std::string args,std::string server,std::string priority); 
 	// Helper functions
 	std::string getUser(){ return user_; }
 	std::string getExecutable(){ return executable_; }
-	std::vector<std::string> getArguments(){ return arguments_; }
+	std::string getArguments(){ return arguments_; }
 	std::string getServer(){ return server_; }
 	std::string getPriority(){ return priority_; }
 private:
 	std::string user_; //user id (uid)
 	std::string executable_; // executable name
-	std::vector<std::string> arguments_; // command line arguments
+	std::string arguments_; // command line arguments
 	std::string server_; // server name
 	std::string priority_; // priority number
 };
@@ -37,7 +37,7 @@ class HistApplication: public Application{
 public:
 	// Constructor of class HistApplication
 	HistApplication(std::string user,std::string executable,
-					std::vector<std::string> args,std::string server,
+					std::string args,std::string server,
 					std::string priority,double runtime); 
 
 	// Helper functions
